@@ -3707,6 +3707,16 @@ def foo(x):
         # shouldn't throw a type error
         torch.jit.script(MyMod())
 
+    def test_hex_int_literals(self):
+        def test1():
+            return 0xaaaaaa
+
+        def test2():
+            return 0xaaaaaa
+
+        self.checkScript(test1, [])
+        self.checkScript(test2, [])
+
     def test_big_int_literals(self):
         def ok():
             a = 0x7FFFFFFFFFFFFFFF
@@ -3720,7 +3730,7 @@ def foo(x):
             a = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
             return a
 
-        self.assertEqual(torch.jit.script(ok)(), ok())
+        self.checkScript(ok, [])
 
         with self.assertRaisesRegex(RuntimeError, "out of range"):
             torch.jit.script(toobig)
