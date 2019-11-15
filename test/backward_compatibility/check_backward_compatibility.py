@@ -25,6 +25,7 @@ white_list = [
     ('_nnpack_spatial_convolution', datetime.date(2019, 11, 12)),
     ('thnn_conv3d', datetime.date(9999, 1, 1)),
     ('thnn_conv3d.out', datetime.date(9999, 1, 1)),
+    ('grad', datetime.date(2020, 1, 1)),
 ]
 
 
