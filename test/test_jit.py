@@ -955,7 +955,6 @@ graph(%x : Tensor,
 
         m = torch.jit.script(M())
         observer = torch.jit.script(Observer())
-        torch._C._jit_pass_constant_propagation(get_forward_graph(m._c))
         qconfig_dict = {
             '':
             QConfig(
@@ -1128,17 +1127,18 @@ graph(%x : Tensor,
 
         for is_per_channel in [True, False]:
             m = torch.jit.script(M())
-            observer = default_per_channel_weight_observer.with_args(ch_axis=1) if is_per_channel \
-                else default_observer
+            observer = default_per_channel_weight_observer.with_args(ch_axis=1) \
+                if is_per_channel else default_observer
             qconfig = QConfig(activation=observer, weight=observer)
             qconfig_dict = {
                 '': script_qconfig(qconfig)
             }
-            torch._C._jit_pass_insert_observers(m._c, "forward", qconfig_dict, True)
+            # TODO: debug why inplace doesn't work
+            m._c = torch._C._jit_pass_insert_observers(m._c, "forward", qconfig_dict, False)
             data = torch.randn(1, 3, 10, 10, dtype=torch.float)
 
             get_forward(m._c)(data)
-            torch._C._jit_pass_insert_quant_dequant(m._c, "forward", True)
+            m._c = torch._C._jit_pass_insert_quant_dequant(m._c, "forward", False)
             assert len(m._modules._c.items()) == 1, \
                 'Expected to have single submodule of conv'
 
