@@ -251,7 +251,9 @@ Tensor empty_like(
   }
 
   Tensor result;
-
+  if (!optional_memory_format.has_value()) {
+    TORCH_CHECK(optional_memory_format.has_value(), "Must specify memory_format")
+  }
   auto memory_format =
       optional_memory_format.value_or(MemoryFormat::Preserve);
   if (memory_format == MemoryFormat::Preserve) {
@@ -950,6 +952,7 @@ Tensor from_file(std::string filename, c10::optional<bool> shared, c10::optional
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ clone ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Tensor clone(const Tensor& src, c10::optional<c10::MemoryFormat> optional_memory_format) {
+  TORCH_CHECK(optional_memory_format.has_value(), "Must specify memory_format")
   auto memory_format =
       optional_memory_format.value_or(MemoryFormat::Preserve);
   if (memory_format == MemoryFormat::Preserve) {
