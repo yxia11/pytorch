@@ -40,51 +40,6 @@ DifferentiableViewMeta::~DifferentiableViewMeta() {
 }
 
 namespace {
-  std::shared_ptr<Node> singleton_shared_ptr;
-}
-
-const std::shared_ptr<Node>& Variable::grad_fn() const {
-  if (is_view()) {
-    // NB: is_view() ==> get_autograd_meta()
-    auto diff_view_meta = static_cast<DifferentiableViewMeta*>(impl::get_autograd_meta(*this));
-    std::lock_guard<std::mutex> lock(diff_view_meta->mutex_);
-    if (!diff_view_meta->grad_fn_ && !diff_view_meta->base_.requires_grad()) {
-      return diff_view_meta->grad_fn_;
-    }
-    auto current_version = this->_version();
-    if (diff_view_meta->attr_version != current_version) {
-      AT_ASSERT(diff_view_meta->output_nr_ == 0);
-      auto fn = std::make_shared<generated::AsStridedBackward>();
-      fn->self_geometry = at::TensorGeometry(diff_view_meta->base_);
-      fn->size = sizes().vec();
-      fn->stride = strides().vec();
-      fn->storage_offset = storage_offset();
-      fn->set_next_edges(collect_next_edges(diff_view_meta->base_));
-      fn->add_input_metadata(
-        diff_view_meta->base_.type()
-      , sizes() // Note: sizes(), not base_.sizes(), is intentional
-      , diff_view_meta->base_.device());
-      diff_view_meta->grad_fn_ = std::move(fn);
-      diff_view_meta->attr_version = current_version;
-    }
-    return diff_view_meta->grad_fn_;
-  } else {
-    if (impl::get_autograd_meta(*this)) {
-      return impl::get_autograd_meta(*this)->grad_fn_;
-    } else {
-      return singleton_shared_ptr;
-    }
-  }
-}
-
-void Variable::remove_hook(unsigned pos) {
-  auto &list = impl::materialize_autograd_meta(*this)->cpp_hooks_list;
-  TORCH_CHECK(list && pos < list->size() , "Invalid index, no hook at position ", pos);
-  // Hook will be ignored
-  (*list)[pos] = nullptr;
-}
-
-namespace {
 
 at::Tensor singleton_undefined_tensor;
 
@@ -277,17 +232,5 @@ namespace impl {
   }
 
 } // namespace impl
-
-namespace {
-  std::string singleton_string;
-}
-
-const std::string& Variable::name() const noexcept {
-  if (impl::get_autograd_meta(*this)) {
-    return impl::get_autograd_meta(*this)->name_;
-  } else {
-    return singleton_string;
-  }
-}
 
 }} // namespace torch::autograd
