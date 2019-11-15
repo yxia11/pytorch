@@ -1436,6 +1436,8 @@ struct CAFFE2_API ClassType : public NamedType {
     return attributeNames_[slot];
   }
 
+  void checkNotExist(const std::string& name, const std::string& what) const;
+
   // Attributes are stored in a specific slot at runtime for effiency.
   // When emitting instructions we specify the slot so that attribute access is
   // a constant lookup
@@ -1519,6 +1521,39 @@ struct CAFFE2_API ClassType : public NamedType {
     return attributeTypes_;
   }
 
+  bool hasConstant(const std::string& name) const {
+    return std::find_if(
+               constantNames_.cbegin(),
+               constantNames_.cend(),
+               [&](const std::string& constant) { return constant == name; }) !=
+        constantNames_.cend();
+  }
+
+  size_t addConstant(
+      const std::string& name,
+      IValue value);
+
+  const std::string& getConstantName(size_t slot) const {
+    TORCH_CHECK(constantNames_.size() == constantValues_.size());
+    TORCH_CHECK(slot < constantNames_.size());
+    return constantNames_[slot];
+  }
+
+  c10::optional<IValue> getConstant(const std::string& name) const;
+
+  size_t numConstants() const {
+    AT_ASSERT(constantNames_.size() == constantValues_.size());
+    return constantNames_.size();
+  }
+
+  at::ArrayRef<std::string> constantNames() const {
+    return constantNames_;
+  }
+
+  at::ArrayRef<IValue> constantValues() const {
+    return constantValues_;
+  }
+
   TypePtr createWithContained(std::vector<TypePtr> contained_types) const override {
     auto ptr = ClassType::create(name(), compilation_unit_);
     AT_ASSERT(numAttributes() == contained_types.size());
@@ -1574,6 +1609,9 @@ struct CAFFE2_API ClassType : public NamedType {
   // available from c10
   std::vector<std::string> attributeNames_;
   std::vector<TypePtr> attributeTypes_;
+  // Mapping of constant names -> their value.
+  std::vector<std::string> constantNames_;
+  std::vector<IValue> constantValues_;
   // Holds method attributes
   std::weak_ptr<CompilationUnit> compilation_unit_;
 

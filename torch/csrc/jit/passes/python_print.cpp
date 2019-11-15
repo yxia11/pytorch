@@ -1240,6 +1240,23 @@ struct PythonPrintImpl {
         body_ << name << " : " << type->python_str() << "\n";
       }
     }
+
+    size_t numConstants = moduleType->numConstants();
+    for (size_t i = 0; i < numConstants; i++) {
+      const auto& name = moduleType->getConstantName(i);
+      const auto& v = moduleType->getConstant(name);
+
+      indent();
+      if (i == 0) {
+        // Iniitalize the constants dict if necessary
+        body_ << "__constants__ = []\n";
+        indent();
+      }
+
+      body_ << "__constants__["
+            << "\"" << name << "\"] = " << v << "\n";
+
+    }
   }
 
   void printNamedType(const c10::NamedTypePtr& type) {
