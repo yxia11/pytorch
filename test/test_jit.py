@@ -3714,8 +3714,12 @@ def foo(x):
         def test2():
             return 0xaaaaaa
 
+        def test3():
+            return -0xaaaaaa
+
         self.checkScript(test1, [])
         self.checkScript(test2, [])
+        self.checkScript(test3, [])
 
     def test_big_int_literals(self):
         def ok():
