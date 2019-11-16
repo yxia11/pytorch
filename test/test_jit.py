@@ -3707,6 +3707,14 @@ def foo(x):
         # shouldn't throw a type error
         torch.jit.script(MyMod())
 
+    def test_big_float_literals(self):
+        def ok():
+            # Python interprets this as inf
+            a = 1.2E400
+            return a
+
+        self.assertTrue(ok() == torch.jit.script(ok)())
+
     def test_hex_int_literals(self):
         def test1():
             return 0xaaaaaa
