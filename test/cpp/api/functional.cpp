@@ -2020,3 +2020,7 @@ TEST_F(FunctionalTest, isfinite) {
   }
   test_isfinite<torch::kFloat16, c10::Half>(at::Device("cuda"));
 }
+
+TEST_F(FunctionalTest, BCEWithLogitsLoss) {
+  // TODO
+}
