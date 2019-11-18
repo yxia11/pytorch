@@ -162,6 +162,10 @@ ProcessGroupAgent::ProcessGroupAgent(
   }
 }
 
+ProcessGroupAgent::~ProcessGroupAgent() {
+  localShutdown();
+}
+
 const WorkerInfo& ProcessGroupAgent::getWorkerInfo(
     const std::string& workerName) const {
   const auto idIter = nameMap_.find(workerName);
@@ -259,12 +263,31 @@ void ProcessGroupAgent::sync() {
 }
 
 void ProcessGroupAgent::start() {
+  start_.store(true);
   listenerThread_ = std::thread(&ProcessGroupAgent::listenLoop, this);
+}
+
+void ProcessGroupAgent::localShutdown() {
+  if (!start_.load()) {
+    return;
+  }
+  LOG(INFO) << "Stopping ProcessGroupAgent.";
+  // CV to make sure we don't abort it in an invalid state.
+  {
+    std::unique_lock<std::mutex> lock(recvWorkMutex_);
+    recvWorkCV_.wait(lock, [this]() { return recvWork_; });
+    recvWork_->abort();
+    start_.store(false);
+  }
+  threadPool_.waitWorkComplete();
+  listenerThread_.join();
+  PythonRpcHandler::getInstance().cleanup();
 }
 
 std::shared_ptr<FutureMessage> ProcessGroupAgent::send(
     const WorkerInfo& to,
     Message&& message) {
+  TORCH_CHECK(start_.load(), "ProcessGroupAgent hasn't started.")
   TORCH_CHECK(
       to.id_ < (worker_id_t)pg_->getSize(),
       "Destination rank is out of bound, got ",
@@ -423,10 +446,24 @@ void ProcessGroupAgent::enqueueRecv(RecvWork work) {
 }
 
 void ProcessGroupAgent::listenLoop() {
-  while (true) {
+  while (start_.load()) {
     // rank, tensor size, message type
     std::vector<torch::Tensor> preamble = {torch::empty({3}, {torch::kInt64})};
-    pg_->recvAnysource(preamble, pg_->getRank())->wait();
+    {
+      std::lock_guard<std::mutex> guard(recvWorkMutex_);
+      recvWork_ = pg_->recvAnysource(preamble, pg_->getRank());
+    }
+
+    recvWorkCV_.notify_one();
+
+    if (!start_.load()) {
+      return;
+    }
+    bool aborted = !recvWork_->wait();
+    if (aborted) {
+      continue;
+    }
+
     int64_t* preamble_items = preamble.front().storage().data<int64_t>();
 
     auto srcRank = preamble_items[0];
